@@ -518,9 +518,13 @@ if run_btn:
                         import os
                         import re
                         import time
-                        vid = re.search(
-                            r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", resolved_source
-                        ).group(1)
+                        vid_match = re.search(
+                            r"(?:v=|/shorts/|youtu\.be/|/embed/)([a-zA-Z0-9_-]{11})",
+                            resolved_source,
+                        )
+                        if not vid_match:
+                            raise ValueError("Could not extract a video ID from that URL.")
+                        vid = vid_match.group(1)
                         proxy = os.getenv("PROXY_URL")
                         
                         if proxy:
@@ -535,10 +539,10 @@ if run_btn:
                         else:
                              ytt_api = YouTubeTranscriptApi()
                              
-                             
+                        fetched=None
                         for attempt in range(2):
                             try:
-                                transcript_list = ytt_api.get_transcript(
+                                fetched = ytt_api.get_transcript(
                         vid,
                         languages=["en", "hi"]
                     )
