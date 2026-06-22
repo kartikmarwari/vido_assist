@@ -13,8 +13,12 @@ from core.rag_engine import build_rag_chain, ask_question
 load_dotenv()
 # Bridge Streamlit secrets → env vars (works locally via .env, on cloud via secrets)
 import streamlit as st
+
+if "PROXY_URL" in st.secrets:
+    os.environ["PROXY_URL"] = st.secrets["PROXY_URL"]
 if "MISTRAL_API_KEY" in st.secrets:
     os.environ["MISTRAL_API_KEY"] = st.secrets["MISTRAL_API_KEY"]
+ 
 # ─── Page Config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="AI Video Assistant",
@@ -512,7 +516,8 @@ if run_btn:
                         vid = re.search(
                             r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", resolved_source
                         ).group(1)
-                        ytt_api = YouTubeTranscriptApi()
+                        proxy = os.getenv("PROXY_URL")
+                        ytt_api = YouTubeTranscriptApi( proxies={"http": proxy, "https": proxy} if proxy else None)
                         fetched = ytt_api.fetch(vid)
                         transcript = " ".join(s.text for s in fetched)
                         update_step("audio", "done")
