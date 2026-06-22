@@ -408,7 +408,7 @@ with st.sidebar:
 
     input_mode = st.radio(
         "Source type",
-        ["YouTube URL", "Upload file", "Local file path"],
+        ["YouTube URL(not woking for sometime,due to youtube restriction)", "Upload file", "Local file path"],
         label_visibility="collapsed",
     )
 
