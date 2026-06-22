@@ -553,7 +553,7 @@ if run_btn:
                                 time.sleep(2)
                                 
                         formatter=TextFormatter()
-                        transcript=formatter.format_transcript(transcript_list)
+                        transcript=formatter.format_transcript(fetched)
                         update_step("audio", "done")
                         update_step("transcript", "done")
                         
