@@ -517,9 +517,22 @@ if run_btn:
                             r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", resolved_source
                         ).group(1)
                         proxy = os.getenv("PROXY_URL")
-                        ytt_api = YouTubeTranscriptApi( proxies={"http": proxy, "https": proxy} if proxy else None)
+                        
+                        if proxy:
+                            from youtube_transcript_api.proxies import GenericProxyConfig
+                            ytt_api = YouTubeTranscriptApi(
+                                proxy_config=GenericProxyConfig(
+                                http_url=proxy,
+                                https_url=proxy,
+        )
+    )
+                        else:
+                             ytt_api = YouTubeTranscriptApi()
                         fetched = ytt_api.fetch(vid)
                         transcript = " ".join(s.text for s in fetched)
+                        
+                        
+
                         update_step("audio", "done")
                         update_step("transcript", "done")
                     except Exception as e:
