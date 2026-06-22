@@ -13,7 +13,8 @@ from core.rag_engine import build_rag_chain, ask_question
 load_dotenv()
 # Bridge Streamlit secrets → env vars (works locally via .env, on cloud via secrets)
 import streamlit as st
-
+if "WHISPER_MODEL" in st.secrets:
+    os.environ["WHISPER_MODEL"] = st.secrets["WHISPER_MODEL"]
 if "PROXY_URL" in st.secrets:
     os.environ["PROXY_URL"] = st.secrets["PROXY_URL"]
 if "MISTRAL_API_KEY" in st.secrets:
