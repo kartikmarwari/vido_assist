@@ -493,14 +493,42 @@ if run_btn:
         try:
             render_live_progress(progress_placeholder, PIPELINE_STEPS, st.session_state.pipeline_steps)
 
+            # ── Audio + Transcript ───────────────────────────────────────────
             update_step("audio", "active")
-            chunks = process_input(resolved_source)
-            update_step("audio", "done")
 
-            update_step("transcript", "active")
-            transcript = transcribe_all(chunks, language)
-            update_step("transcript", "done")
+            if input_mode == "YouTube URL":
+                try:
+                    # First: try audio download + Whisper
+                    chunks = process_input(resolved_source)
+                    update_step("audio", "done")
+                    update_step("transcript", "active")
+                    transcript = transcribe_all(chunks, language)
+                    update_step("transcript", "done")
+                except Exception:
+                    # Fallback: fetch YouTube captions directly
+                    try:
+                        from youtube_transcript_api import YouTubeTranscriptApi
+                        import re
+                        vid = re.search(
+                            r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", resolved_source
+                        ).group(1)
+                        segments = YouTubeTranscriptApi.get_transcript(
+                            vid, languages=["en", "hi", "en-IN"]
+                        )
+                        transcript = " ".join(s["text"] for s in segments)
+                        update_step("audio", "done")
+                        update_step("transcript", "done")
+                    except Exception as e:
+                        raise Exception(f"Both audio download and transcript extraction failed: {e}")
+            else:
+                # File upload / local path — standard pipeline
+                chunks = process_input(resolved_source)
+                update_step("audio", "done")
+                update_step("transcript", "active")
+                transcript = transcribe_all(chunks, language)
+                update_step("transcript", "done")
 
+            # ── Rest of pipeline ─────────────────────────────────────────────
             update_step("title", "active")
             title = generate_title(transcript)
             update_step("title", "done")
@@ -540,7 +568,6 @@ if run_btn:
                     break
             st.session_state.pipeline_error = str(e)
             progress_placeholder.error(f"❌ {e}")
-
 # ─── Results ────────────────────────────────────────────────────────────────────
 if st.session_state.result:
     r = st.session_state.result
