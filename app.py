@@ -1,4 +1,6 @@
+
 import os
+import re
 import tempfile
 
 import streamlit as st
@@ -6,20 +8,17 @@ from dotenv import load_dotenv
 
 from utils.audio_process import process_input
 from core.transcriber import transcribe_all
-from core.summarizer import summarize, generate_title          # ← fixed import
+from core.summarizer import summarize, generate_title
 from core.extractor import extract_action_items, extract_key_decisions, extract_questions
 from core.rag_engine import build_rag_chain, ask_question
 
 load_dotenv()
-# Bridge Streamlit secrets → env vars (works locally via .env, on cloud via secrets)
-import streamlit as st
-if "WHISPER_MODEL" in st.secrets:
-    os.environ["WHISPER_MODEL"] = st.secrets["WHISPER_MODEL"]
-if "PROXY_URL" in st.secrets:
-    os.environ["PROXY_URL"] = st.secrets["PROXY_URL"]
-if "MISTRAL_API_KEY" in st.secrets:
-    os.environ["MISTRAL_API_KEY"] = st.secrets["MISTRAL_API_KEY"]
- 
+
+# Bridge Streamlit secrets → env vars
+for _key in ["MISTRAL_API_KEY", "PROXY_URL", "WHISPER_MODEL", "SARVAM_API_KEY"]:
+    if _key in st.secrets:
+        os.environ[_key] = st.secrets[_key]
+
 # ─── Page Config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="AI Video Assistant",
@@ -259,10 +258,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif !important; color: var(
     color: var(--text) !important;
     border-radius: 10px !important;
 }
-[data-testid="stChatInput"] {
-    background: transparent !important;
-    border-top: 1px solid var(--border) !important;
-}
+[data-testid="stChatInput"] { background: transparent !important; border-top: 1px solid var(--border) !important; }
 
 .transcript-box {
     background: var(--surface-2);
@@ -284,7 +280,6 @@ hr { border: none !important; border-top: 1px solid var(--border) !important; ma
 .stSpinner > div { border-top-color: var(--accent) !important; }
 [data-testid="stMarkdownContainer"] p { color: var(--text) !important; }
 label, .stRadio label p { color: var(--text-muted) !important; font-size: 0.8rem !important; }
-
 [data-testid="stExpander"] {
     background: var(--surface) !important;
     border: 1px solid var(--border) !important;
@@ -392,6 +387,30 @@ def render_live_progress(container, steps_order, current_steps):
                 f'{marker} {icon} {label}{hint}</div>'
             )
         st.markdown(rows_html + "</div>", unsafe_allow_html=True)
+
+# ─── YouTube transcript helper ───────────────────────────────────────────────────
+def fetch_youtube_transcript(url: str) -> str:
+    from youtube_transcript_api import YouTubeTranscriptApi
+    from youtube_transcript_api.proxies import GenericProxyConfig
+
+    vid = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", url)
+    if not vid:
+        raise ValueError("Could not extract video ID from URL.")
+    vid = vid.group(1)
+
+    proxy = os.getenv("PROXY_URL")
+    if proxy:
+        ytt_api = YouTubeTranscriptApi(
+            proxy_config=GenericProxyConfig(
+                http_url=proxy,
+                https_url=proxy,
+            )
+        )
+    else:
+        ytt_api = YouTubeTranscriptApi()
+
+    fetched = ytt_api.fetch(vid)
+    return " ".join(s.text for s in fetched)
 
 # ─── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -510,36 +529,15 @@ if run_btn:
                     transcript = transcribe_all(chunks, language)
                     update_step("transcript", "done")
                 except Exception:
-                    # Fallback: fetch YouTube captions directly
+                    # Fallback: fetch YouTube captions via proxy
                     try:
-                        from youtube_transcript_api import YouTubeTranscriptApi
-                        import re
-                        vid = re.search(
-                            r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", resolved_source
-                        ).group(1)
-                        proxy = os.getenv("PROXY_URL")
-                        
-                        if proxy:
-                            from youtube_transcript_api.proxies import GenericProxyConfig
-                            ytt_api = YouTubeTranscriptApi(
-                                proxy_config=GenericProxyConfig(
-                                http_url=proxy,
-                                https_url=proxy,
-        )
-    )
-                        else:
-                             ytt_api = YouTubeTranscriptApi()
-                        fetched = ytt_api.fetch(vid)
-                        transcript = " ".join(s.text for s in fetched)
-                        
-                        
-
+                        transcript = fetch_youtube_transcript(resolved_source)
                         update_step("audio", "done")
                         update_step("transcript", "done")
                     except Exception as e:
                         raise Exception(f"Both audio download and transcript extraction failed: {e}")
             else:
-                # File upload / local path — standard pipeline
+                # File upload / local path
                 chunks = process_input(resolved_source)
                 update_step("audio", "done")
                 update_step("transcript", "active")
@@ -586,6 +584,7 @@ if run_btn:
                     break
             st.session_state.pipeline_error = str(e)
             progress_placeholder.error(f"❌ {e}")
+
 # ─── Results ────────────────────────────────────────────────────────────────────
 if st.session_state.result:
     r = st.session_state.result
