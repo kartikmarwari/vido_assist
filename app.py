@@ -512,10 +512,9 @@ if run_btn:
                         vid = re.search(
                             r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", resolved_source
                         ).group(1)
-                        segments = YouTubeTranscriptApi.get_transcript(
-                            vid, languages=["en", "hi", "en-IN"]
-                        )
-                        transcript = " ".join(s["text"] for s in segments)
+                        ytt_api = YouTubeTranscriptApi()
+                        fetched = ytt_api.fetch(vid)
+                        transcript = " ".join(s.text for s in fetched)
                         update_step("audio", "done")
                         update_step("transcript", "done")
                     except Exception as e:
